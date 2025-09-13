@@ -5,7 +5,7 @@ import com.taskmanager.common.model.UserBase;
 
 public interface AuthService {
 
-	public UserBase registerUser(UserBase userBase);
-
 	public JwtToken processLogin(UserBase userBase);
+
+	public JwtToken refreshToken(String refreshToken);
 }

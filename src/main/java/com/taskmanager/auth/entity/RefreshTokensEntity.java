@@ -24,7 +24,6 @@ import lombok.Setter;
 public class RefreshTokensEntity {
 
 	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
 	private String id;
 
 	@Column(name = "user_id", nullable = false, length = 36)

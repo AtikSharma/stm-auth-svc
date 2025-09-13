@@ -1,5 +1,9 @@
 package com.taskmanager.auth.service.impl;
 
+import com.taskmanager.auth.mapper.TokenMapper;
+import com.taskmanager.common.constants.JwtConstants;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +22,6 @@ import com.taskmanager.common.exception.RestCallException;
 import com.taskmanager.common.model.JwtToken;
 import com.taskmanager.common.model.User;
 import com.taskmanager.common.model.UserBase;
-import com.taskmanager.common.model.request.RegistrationRequest;
 import com.taskmanager.common.util.JwtUtils;
 import com.taskmanager.common.util.PasswordUtil;
 import com.taskmanager.common.util.StringUtils;
@@ -26,76 +29,118 @@ import com.taskmanager.common.util.StringUtils;
 @Service
 public class AuthServiceImpl implements AuthService {
 
-	private UserServiceClient userServiceClient;
-	private UserBOMapper userBOMapper;
-	private JwtUtils jwtUtils;
-	private TokenDao tokenDao;
+    private final UserServiceClient userServiceClient;
+    private final JwtUtils jwtUtils;
+    private final TokenDao tokenDao;
+    private final TokenMapper tokenMapper;
 
-	Logger logger = LoggerFactory.getLogger(getClass());
+    Logger logger = LoggerFactory.getLogger(getClass());
 
-	@Autowired
-	AuthServiceImpl(UserServiceClient userServiceClient, UserBOMapper userBOMapper, JwtUtils jwtUtils,
-			TokenDao tokenDao) {
-		this.userServiceClient = userServiceClient;
-		this.userBOMapper = userBOMapper;
-		this.jwtUtils = jwtUtils;
-		this.tokenDao = tokenDao;
-	}
+    @Autowired
+    AuthServiceImpl(UserServiceClient userServiceClient, JwtUtils jwtUtils,
+                    TokenDao tokenDao, TokenMapper tokenMapper) {
+        this.userServiceClient = userServiceClient;
+        this.jwtUtils = jwtUtils;
+        this.tokenDao = tokenDao;
+        this.tokenMapper = tokenMapper;
+    }
 
-	@Override
-	public UserBase registerUser(UserBase userBase) {
-		RegistrationRequest request = userBOMapper.mapToRegistrationRequestFromUserBase(userBase);
-		return userServiceClient.registerUser(request);
-	}
+    @Override
+    public JwtToken processLogin(UserBase userBase) {
 
-	@Override
-	public JwtToken processLogin(UserBase userBase) {
+        User userDetails = getUserDetails(userBase);
 
-		// TODO : Fetch UserDetail
-		String identifier = getIdentifier(userBase);
-		User userDetails = getUserDetails(identifier);
+        // Validate User Status
+        if (!userDetails.getStatus().equals(Status.ACTIVE)) {
+            throw new ApplicationException(ErrorConstants.INACTIVE_USER, HttpStatus.UNAUTHORIZED);
+        }
 
-		if (!userDetails.getStatus().equals(Status.ACTIVE)) {
-			throw new ApplicationException(ErrorConstants.INACTIVE_USER, HttpStatus.UNAUTHORIZED);
-		}
+        // Validate Password
+        if (PasswordUtil.isMatch(userBase.getPassword(), userDetails.getPassword())) {
+            // Generate JWT Token
+            JwtToken jwtToken = jwtUtils.generateJwt(userDetails);
+            storeRefreshToken(jwtToken, userDetails);
+            return jwtToken;
 
-		// TODO : Validate Password, if invalid raise exception
-		if (PasswordUtil.isMatch(userBase.getPassword(), userDetails.getPassword())) {
-			// TODO : If Valid password generate JWT
-			JwtToken jwtToken = jwtUtils.generateJwt(userDetails);
+        } else {
+            throw new ApplicationException(ErrorConstants.INCORRECT_PASSWORD, HttpStatus.UNAUTHORIZED);
+        }
 
-			RefreshToken refreshToken = userBOMapper.mapToRefreshToken(jwtToken, userDetails,
-					jwtUtils.getCreatedDate(jwtToken.getRefreshToken()),
-					jwtUtils.getExpirationDate(jwtToken.getRefreshToken()));
+    }
 
-			refreshToken = tokenDao.save(refreshToken);
+    @Override
+    public JwtToken refreshToken(String refreshToken) {
+        if (StringUtils.isBlank(refreshToken)) {
+            throw new ApplicationException(ErrorConstants.ERROR_INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
+        }
 
-			return jwtToken;
-		} else {
-			throw new ApplicationException(ErrorConstants.INCORRECT_PASSWORD, HttpStatus.UNAUTHORIZED);
-		}
-	}
+        // Validate Refresh Token and Extract Claims
+        Claims claims = null;
+        try {
+            claims = jwtUtils.extractClaims(refreshToken);
+        } catch (JwtException e) {
+            throw new ApplicationException(ErrorConstants.REFRESH_TOKEN_EXPIRED, HttpStatus.UNAUTHORIZED);
+        }
 
-	private User getUserDetails(String identifier) {
-		try {
-			return userServiceClient.getUserDetails(identifier);
-		} catch (RestCallException e) {
-			if (e.getLocalizedMessage().equals(ErrorConstants.ERROR_USER_NOT_FOUND)) {
-				throw new ApplicationException(ErrorConstants.ERROR_INVALID_USERNAME_OR_PASSWORD);
-			}
-		} catch (Exception e) {
-			logger.error(ErrorConstants.ERROR_WHILE_FINDING_USER, e);
-			throw new ApplicationException(ErrorConstants.ERROR_WHILE_FINDING_USER, e);
-		}
-		return null;
-	}
+        // Validate Token Type and Expiry
+        if (claims == null || !jwtUtils.isTokenTypeValid(refreshToken, JwtUtils.TokenType.REFRESH)
+                || jwtUtils.isTokenExpired(claims)) {
+            throw new ApplicationException(ErrorConstants.ERROR_INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
+        }
 
-	private String getIdentifier(UserBase userBase) {
-		if (userBase.getEmail() == null || StringUtils.isBlank(userBase.getEmail())) {
-			return userBase.getUsername();
-		} else {
-			return userBase.getEmail();
-		}
-	}
+        // Check in DB
+        RefreshToken storedRefreshToken = tokenDao.getValidRefreshTokenById(claims.getId())
+                .orElseThrow(() -> new ApplicationException(ErrorConstants.ERROR_INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED));
+
+        // Validate UserId and Token
+        if (!storedRefreshToken.getUserId().equals(claims.get(JwtConstants.USER_ID, String.class))
+                || !storedRefreshToken.getToken().equals(refreshToken)) {
+            throw new ApplicationException(ErrorConstants.ERROR_INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
+        }
+
+        // Get User Details
+        User userDetails = getUserDetails(UserBase.builder()
+                .id(storedRefreshToken.getUserId())
+                .build());
+
+        if (userDetails == null || !userDetails.getStatus().equals(Status.ACTIVE)) {
+            throw new ApplicationException(ErrorConstants.INACTIVE_USER, HttpStatus.UNAUTHORIZED);
+        }
+
+        // Generate new JWT Token
+        JwtToken jwtToken = jwtUtils.generateJwt(userDetails);
+
+        // Update Refresh Token in DB
+        tokenDao.delete(storedRefreshToken);
+        storeRefreshToken(jwtToken, userDetails);
+
+        return jwtToken;
+    }
+
+    private void storeRefreshToken(JwtToken jwtToken, User userDetails) {
+        // Save Refresh Token
+        Claims claims = jwtUtils.extractClaims(jwtToken.getRefreshToken());
+        RefreshToken refreshToken = tokenMapper.mapToRefreshToken(jwtToken, userDetails, claims);
+        tokenDao.save(refreshToken);
+    }
+
+    private User getUserDetails(UserBase userBase) {
+        try {
+            if (userBase.getId() != null) {
+                return userServiceClient.getUserDetailsById(userBase.getId());
+            }
+            return userServiceClient.getUserDetailsByUsername(userBase.getUsername());
+        } catch (RestCallException e) {
+            if (e.getLocalizedMessage().equals(ErrorConstants.ERROR_USER_NOT_FOUND_USERNAME)) {
+                throw new ApplicationException(ErrorConstants.ERROR_INVALID_USERNAME_OR_PASSWORD);
+            } else if (e.getLocalizedMessage().equals(ErrorConstants.ERROR_USER_NOT_FOUND_ID)) {
+                throw new ApplicationException(ErrorConstants.INVALID_USER_ID);
+            }
+        } catch (Exception e) {
+            logger.error(ErrorConstants.ERROR_WHILE_FINDING_USER, e);
+            throw new ApplicationException(ErrorConstants.ERROR_WHILE_FINDING_USER, e);
+        }
+        throw new ApplicationException(ErrorConstants.ERROR_WHILE_FINDING_USER);
+    }
 
 }

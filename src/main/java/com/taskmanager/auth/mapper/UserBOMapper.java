@@ -2,6 +2,7 @@ package com.taskmanager.auth.mapper;
 
 import java.util.Date;
 
+import io.jsonwebtoken.Claims;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -15,17 +16,12 @@ import com.taskmanager.common.model.request.RegistrationRequest;
 @Mapper(componentModel = "spring")
 public interface UserBOMapper {
 
-	public RegistrationRequest mapToRegistrationRequestFromUserBase(UserBase userBase);
+    public RegistrationRequest mapToRegistrationRequestFromUserBase(UserBase userBase);
 
-	public UserBase mapFromRegistrationRequestToUserBase(RegistrationRequest registrationRequest);
+    public UserBase mapFromRegistrationRequestToUserBase(RegistrationRequest registrationRequest);
 
-	public UserExp mapToExpFromUserBase(UserBase user);
+    public UserExp mapToExpFromUserBase(UserBase user);
 
-	public UserBase mapFromLoginRequest(LoginRequest loginRequest);
+    public UserBase mapFromLoginRequest(LoginRequest loginRequest);
 
-	@Mapping(target = "id", ignore = true)
-	@Mapping(target = "userId", source = "userDetails.id")
-	@Mapping(target = "token", source = "jwtResponse.refreshToken")
-	public RefreshToken mapToRefreshToken(JwtToken jwtResponse, UserBase userDetails, Date createdDateTime,
-			Date expiryDateTime);
 }
