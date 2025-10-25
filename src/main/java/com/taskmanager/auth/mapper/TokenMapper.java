@@ -21,6 +21,7 @@ public interface TokenMapper {
     @Mapping(target = "token", source = "jwtResponse.refreshToken")
     @Mapping(target = "createdDateTime", source = "claims.issuedAt", qualifiedByName = "toLocalDateTime")
     @Mapping(target = "expiryDateTime", source = "claims.expiration", qualifiedByName = "toLocalDateTime")
+    @Mapping(target = "revoked", constant = "false")
     RefreshToken mapToRefreshToken(JwtToken jwtResponse, UserBase userDetails, Claims claims);
 
     LoginResponse mapToLoginResponse(JwtToken jwtToken);

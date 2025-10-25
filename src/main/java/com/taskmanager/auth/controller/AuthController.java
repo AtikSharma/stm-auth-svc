@@ -6,8 +6,10 @@ import com.taskmanager.auth.model.response.LoginResponse;
 import com.taskmanager.auth.service.AuthService;
 import com.taskmanager.common.constants.CommonConstants;
 import com.taskmanager.common.model.JwtToken;
+import com.taskmanager.common.model.ServiceResponse;
 import com.taskmanager.common.model.UserBase;
 import com.taskmanager.common.model.request.LoginRequest;
+import com.taskmanager.common.model.request.LogoutRequest;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -50,6 +52,14 @@ public class AuthController {
         JwtToken token = authService.refreshToken(refreshToken);
         LoginResponse response = tokenMapper.mapToLoginResponse(token);
         return response.build("Success", HttpStatus.OK, response);
+    }
+
+    @PostMapping(path = CommonConstants.API_AUTH_LOGOUT)
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Logout Successful")})
+    public ResponseEntity<?> logout(@RequestBody LogoutRequest logoutRequest) {
+        authService.logout(logoutRequest);
+        return new ServiceResponse().build("Logout Successful", HttpStatus.OK);
     }
 
 }

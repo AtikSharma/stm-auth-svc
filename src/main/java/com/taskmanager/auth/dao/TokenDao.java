@@ -7,9 +7,13 @@ import java.util.Optional;
 
 public interface TokenDao {
 
-    public RefreshToken save(RefreshToken refreshToken);
+    RefreshToken save(RefreshToken refreshToken);
 
-    public Optional<RefreshToken> getValidRefreshTokenById(String id);
+    Optional<RefreshToken> getValidRefreshTokenById(String id);
 
     void delete(RefreshToken storedRefreshToken);
+
+    Optional<RefreshToken> getLastValidRefreshTokenByUserId(String id);
+
+    void updateRevokedStatus(RefreshToken storedRefreshToken);
 }

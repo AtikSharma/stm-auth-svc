@@ -37,4 +37,13 @@ public class RefreshTokensEntity {
 
 	@Column(name = "created_at")
 	private LocalDateTime createdDateTime;
+
+	@Column(name = "revoked", nullable = false)
+	private boolean revoked;
+
+	@Column(name = "previous_jti", nullable = true)
+	private String previousJti;
+
+	@Column(name = "refresh_count", nullable = false)
+	private int refreshCount;
 }

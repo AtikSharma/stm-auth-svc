@@ -20,4 +20,10 @@ public class RefreshToken {
 	private LocalDateTime expiryDateTime;
 
 	private LocalDateTime createdDateTime;
+
+	private boolean revoked;
+
+	private String previousJti;
+
+	private int refreshCount;
 }

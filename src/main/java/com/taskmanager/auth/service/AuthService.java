@@ -2,10 +2,13 @@ package com.taskmanager.auth.service;
 
 import com.taskmanager.common.model.JwtToken;
 import com.taskmanager.common.model.UserBase;
+import com.taskmanager.common.model.request.LogoutRequest;
 
 public interface AuthService {
 
-	public JwtToken processLogin(UserBase userBase);
+	JwtToken processLogin(UserBase userBase);
 
-	public JwtToken refreshToken(String refreshToken);
+	JwtToken refreshToken(String refreshToken);
+
+	void logout(LogoutRequest refreshToken);
 }

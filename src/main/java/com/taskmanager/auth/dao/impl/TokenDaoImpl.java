@@ -40,4 +40,16 @@ public class TokenDaoImpl implements TokenDao {
         refreshTokenRepository.deleteById(storedRefreshToken.getId());
     }
 
+    @Override
+    public Optional<RefreshToken> getLastValidRefreshTokenByUserId(String id) {
+        return refreshTokenRepository.findLastValidRefreshTokenByUserId(id).map(refreshTokenEntityMapper::mapFromEntity);
+    }
+
+    @Override
+    public void updateRevokedStatus(RefreshToken storedRefreshToken) {
+        storedRefreshToken.setRevoked(true);
+        RefreshTokensEntity entity = refreshTokenEntityMapper.mapToEntity(storedRefreshToken);
+        refreshTokenRepository.save(entity);
+    }
+
 }
