@@ -47,9 +47,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public JwtToken processLogin(UserBase userBase) {
+    public JwtToken processLogin(User user) {
 
-        User userDetails = getUserDetails(userBase);
+        User userDetails = getUserDetails(user);
 
         // Validate User Status
         if (!userDetails.getStatus().equals(Status.ACTIVE)) {
@@ -57,7 +57,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Validate Password
-        if (PasswordUtil.isMatch(userBase.getPassword(), userDetails.getPassword())) {
+        if (PasswordUtil.isMatch(user.getPassword(), userDetails.getPassword())) {
             // Generate JWT Token
             JwtToken jwtToken = jwtUtils.generateJwt(userDetails);
             storeRefreshToken(jwtToken, userDetails, null);
@@ -94,7 +94,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Get User Details
-        User userDetails = getUserDetails(UserBase.builder()
+        User userDetails = getUserDetails(User.builder()
                 .id(storedRefreshToken.getUserId())
                 .build());
 
@@ -168,12 +168,12 @@ public class AuthServiceImpl implements AuthService {
         tokenDao.save(refreshToken);
     }
 
-    private User getUserDetails(UserBase userBase) {
+    private User getUserDetails(User userBase) {
         try {
             if (userBase.getId() != null) {
-                return userServiceClient.getUserDetailsById(userBase.getId());
+                return userServiceClient.getUserDetailsById(userBase.getId(), true);
             }
-            return userServiceClient.getUserDetailsByUsername(userBase.getUsername());
+            return userServiceClient.getUserDetailsByUsername(userBase.getUsername(), true);
         } catch (RestCallException e) {
             if (e.getLocalizedMessage().equals(ErrorConstants.ERROR_USER_NOT_FOUND_USERNAME)) {
                 throw new ApplicationException(ErrorConstants.ERROR_INVALID_USERNAME_OR_PASSWORD);

@@ -7,6 +7,7 @@ import com.taskmanager.auth.service.AuthService;
 import com.taskmanager.common.constants.CommonConstants;
 import com.taskmanager.common.model.JwtToken;
 import com.taskmanager.common.model.ServiceResponse;
+import com.taskmanager.common.model.User;
 import com.taskmanager.common.model.UserBase;
 import com.taskmanager.common.model.request.LoginRequest;
 import com.taskmanager.common.model.request.LogoutRequest;
@@ -39,8 +40,8 @@ public class AuthController {
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User Login Successful", content = @Content(schema = @Schema(implementation = LoginResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE))})
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest) {
-        UserBase userBase = userBOMapper.mapFromLoginRequest(loginRequest);
-        JwtToken token = authService.processLogin(userBase);
+        User user = userBOMapper.mapFromLoginRequest(loginRequest);
+        JwtToken token = authService.processLogin(user);
         LoginResponse response = tokenMapper.mapToLoginResponse(token);
         return response.build("Success", HttpStatus.OK, response);
     }
