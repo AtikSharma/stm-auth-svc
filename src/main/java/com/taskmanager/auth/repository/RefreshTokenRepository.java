@@ -1,16 +1,16 @@
 package com.taskmanager.auth.repository;
 
 import com.taskmanager.auth.entity.RefreshTokensEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository
-public interface RefreshTokenRepository extends JpaRepository<RefreshTokensEntity, String> {
+public interface RefreshTokenRepository extends MongoRepository<RefreshTokensEntity, String> {
 
-    @Query("SELECT r FROM RefreshTokensEntity r WHERE r.userId = :id AND r.expiryDateTime > CURRENT_TIMESTAMP ORDER BY r.createdDateTime DESC")
+    @Query(value = "{'userId' : ?0, 'expiryDateTime' : { $gt : ?1 }}", sort = "{'createdDateTime' : -1 }")
     Optional<RefreshTokensEntity> findLastValidRefreshTokenByUserId(String id);
 
 }
